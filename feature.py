@@ -10,6 +10,14 @@ from datetime import date, datetime
 import time
 from dateutil.parser import parse as date_parse
 from urllib.parse import urlparse
+import dns.resolver
+import warnings
+import urllib3
+
+# Suppress all warnings
+warnings.filterwarnings('ignore')
+warnings.simplefilter('ignore')
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class FeatureExtraction:
     features = []
@@ -23,8 +31,21 @@ class FeatureExtraction:
         self.soup = ""
 
         try:
-            self.response = requests.get(url)
-            self.soup = BeautifulSoup(response.text, 'html.parser')
+            # Create a session with proper SSL verification
+            session = requests.Session()
+            session.verify = True  # Enable SSL verification
+            
+            # Try with SSL verification first
+            try:
+                self.response = session.get(self.url, timeout=5)
+            except requests.exceptions.SSLError:
+                # If SSL verification fails, try without verification as fallback
+                session.verify = False
+                self.response = session.get(self.url, timeout=5)
+            
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=UserWarning)
+                self.soup = BeautifulSoup(self.response.text, 'lxml')
         except:
             pass
 
@@ -39,62 +60,56 @@ class FeatureExtraction:
         except:
             pass
 
+        # Extract features in the exact order expected by URLAnalyzer
+        self.features.append(self.UsingIP())          # 1. UsingIP
+        self.features.append(self.LongURL())          # 2. LongURL
+        self.features.append(self.ShortURL())         # 3. ShortURL
+        self.features.append(self.Symbol())           # 4. Symbol@
+        self.features.append(self.Redirecting())      # 5. Redirecting//
+        self.features.append(self.PrefixSuffix())     # 6. PrefixSuffix-
+        self.features.append(self.SubDomains())       # 7. SubDomains
+        self.features.append(self.HTTPS())            # 8. HTTPS
+        self.features.append(self.DomainRegLen())     # 9. DomainRegLen
+        self.features.append(self.Favicon())          # 10. Favicon
+        self.features.append(self.NonStdPort())       # 11. NonStdPort
+        self.features.append(self.HTTPSDomainURL())   # 12. HTTPSDomainURL
+        self.features.append(self.RequestURL())       # 13. RequestURL
+        self.features.append(self.AnchorURL())        # 14. AnchorURL
+        self.features.append(self.LinksInScriptTags()) # 15. LinksInScriptTags
+        self.features.append(self.ServerFormHandler()) # 16. ServerFormHandler
+        self.features.append(self.InfoEmail())        # 17. InfoEmail
+        self.features.append(self.AbnormalURL())      # 18. AbnormalURL
+        self.features.append(self.WebsiteForwarding()) # 19. WebsiteForwarding
+        self.features.append(self.StatusBarCust())    # 20. StatusBarCust
+        self.features.append(self.DisableRightClick()) # 21. DisableRightClick
+        self.features.append(self.UsingPopupWindow()) # 22. UsingPopupWindow
+        self.features.append(self.IframeRedirection()) # 23. IframeRedirection
+        self.features.append(self.AgeofDomain())      # 24. AgeofDomain
+        self.features.append(self.DNSRecording())     # 25. DNSRecording
+        self.features.append(self.WebsiteTraffic())   # 26. WebsiteTraffic
+        self.features.append(self.PageRank())         # 27. PageRank
+        self.features.append(self.GoogleIndex())      # 28. GoogleIndex
+        self.features.append(self.LinksPointingToPage()) # 29. LinksPointingToPage
+        self.features.append(self.StatsReport())      # 30. StatsReport
 
-        
-
-        self.features.append(self.UsingIp())
-        self.features.append(self.longUrl())
-        self.features.append(self.shortUrl())
-        self.features.append(self.symbol())
-        self.features.append(self.redirecting())
-        self.features.append(self.prefixSuffix())
-        self.features.append(self.SubDomains())
-        self.features.append(self.Hppts())
-        self.features.append(self.DomainRegLen())
-        self.features.append(self.Favicon())
-        
-
-        self.features.append(self.NonStdPort())
-        self.features.append(self.HTTPSDomainURL())
-        self.features.append(self.RequestURL())
-        self.features.append(self.AnchorURL())
-        self.features.append(self.LinksInScriptTags())
-        self.features.append(self.ServerFormHandler())
-        self.features.append(self.InfoEmail())
-        self.features.append(self.AbnormalURL())
-        self.features.append(self.WebsiteForwarding())
-        self.features.append(self.StatusBarCust())
-
-        self.features.append(self.DisableRightClick())
-        self.features.append(self.UsingPopupWindow())
-        self.features.append(self.IframeRedirection())
-        self.features.append(self.AgeofDomain())
-        self.features.append(self.DNSRecording())
-        self.features.append(self.WebsiteTraffic())
-        self.features.append(self.PageRank())
-        self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
-        self.features.append(self.StatsReport())
-
-
-     # 1.UsingIp
-    def UsingIp(self):
+    # 1.UsingIP
+    def UsingIP(self):
         try:
             ipaddress.ip_address(self.url)
             return -1
         except:
             return 1
 
-    # 2.longUrl
-    def longUrl(self):
+    # 2.LongURL
+    def LongURL(self):
         if len(self.url) < 54:
             return 1
         if len(self.url) >= 54 and len(self.url) <= 75:
             return 0
         return -1
 
-    # 3.shortUrl
-    def shortUrl(self):
+    # 3.ShortURL
+    def ShortURL(self):
         match = re.search('bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
                     'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
                     'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
@@ -107,19 +122,19 @@ class FeatureExtraction:
         return 1
 
     # 4.Symbol@
-    def symbol(self):
+    def Symbol(self):
         if re.findall("@",self.url):
             return -1
         return 1
     
     # 5.Redirecting//
-    def redirecting(self):
+    def Redirecting(self):
         if self.url.rfind('//')>6:
             return -1
         return 1
     
-    # 6.prefixSuffix
-    def prefixSuffix(self):
+    # 6.PrefixSuffix-
+    def PrefixSuffix(self):
         try:
             match = re.findall('\-', self.domain)
             if match:
@@ -131,14 +146,15 @@ class FeatureExtraction:
     # 7.SubDomains
     def SubDomains(self):
         dot_count = len(re.findall("\.", self.url))
-        if dot_count == 1:
+        if dot_count<4:
             return 1
-        elif dot_count == 2:
+        elif dot_count>=4 and dot_count<=6:
             return 0
-        return -1
+        else:
+            return -1
 
     # 8.HTTPS
-    def Hppts(self):
+    def HTTPS(self):
         try:
             https = self.urlparse.scheme
             if 'https' in https:
@@ -170,7 +186,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    # 10. Favicon
+    # 10.Favicon
     def Favicon(self):
         try:
             for head in self.soup.find_all('head'):
@@ -182,7 +198,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    # 11. NonStdPort
+    # 11.NonStdPort
     def NonStdPort(self):
         try:
             port = self.domain.split(":")
@@ -192,7 +208,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    # 12. HTTPSDomainURL
+    # 12.HTTPSDomainURL
     def HTTPSDomainURL(self):
         try:
             if 'https' in self.domain:
@@ -201,9 +217,11 @@ class FeatureExtraction:
         except:
             return -1
     
-    
+    # 13.RequestURL
     def RequestURL(self):
         try:
+            success = 0
+            i = 0
             for img in self.soup.find_all('img', src=True):
                 dots = [x.start(0) for x in re.finditer('\.', img['src'])]
                 if self.url in img['src'] or self.domain in img['src'] or len(dots) == 1:
@@ -241,7 +259,7 @@ class FeatureExtraction:
         except:
             return -1
     
-    
+    # 14.AnchorURL
     def AnchorURL(self):
         try:
             i,unsafe = 0,0
@@ -264,7 +282,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    
+    # 15.LinksInScriptTags
     def LinksInScriptTags(self):
         try:
             i,success = 0,0
@@ -294,7 +312,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    
+    # 16.ServerFormHandler
     def ServerFormHandler(self):
         try:
             if len(self.soup.find_all('form', action=True))==0:
@@ -310,7 +328,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    
+    # 17.InfoEmail
     def InfoEmail(self):
         try:
             if re.findall(r"[mail\(\)|mailto:?]", self.soap):
@@ -320,7 +338,7 @@ class FeatureExtraction:
         except:
             return -1
 
-   
+    # 18.AbnormalURL
     def AbnormalURL(self):
         try:
             if self.response.text == self.whois_response:
@@ -330,7 +348,7 @@ class FeatureExtraction:
         except:
             return -1
 
-    
+    # 19.WebsiteForwarding
     def WebsiteForwarding(self):
         try:
             if len(self.response.history) <= 1:
@@ -342,7 +360,7 @@ class FeatureExtraction:
         except:
              return -1
 
-    
+    # 20.StatusBarCust
     def StatusBarCust(self):
         try:
             if re.findall("<script>.+onmouseover.+</script>", self.response.text):
@@ -352,83 +370,275 @@ class FeatureExtraction:
         except:
              return -1
 
-    
+    # 21.DisableRightClick
     def DisableRightClick(self):
         try:
-            if re.findall(r"event.button ?== ?2", self.response.text):
-                return 1
-            else:
-                return -1
+            # Check for common right-click disable patterns
+            patterns = [
+                r"event\.button\s*==\s*2",  # Right click event
+                r"oncontextmenu\s*=\s*['\"]return false['\"]",  # Context menu disable
+                r"document\.oncontextmenu\s*=\s*function\(\)\s*{\s*return false",  # Context menu function
+                r"addEventListener\s*\(\s*['\"]contextmenu['\"]",  # Context menu listener
+                r"preventDefault\s*\(\s*\)",  # Event prevention
+                r"return false;",  # Generic return false
+                r"e\.preventDefault\s*\(\s*\)"  # Event prevention with parameter
+            ]
+            
+            # Check if any pattern matches
+            for pattern in patterns:
+                if re.search(pattern, self.response.text, re.IGNORECASE):
+                    return -1
+            return 1
         except:
-             return -1
+            return 0  # Return neutral on error instead of suspicious
 
-   
+    # 22.UsingPopupWindow
     def UsingPopupWindow(self):
         try:
-            if re.findall(r"alert\(", self.response.text):
-                return 1
+            if not self.response.text:
+                return 0
+            
+            # Common popup patterns
+            popup_patterns = [
+                r"alert\s*\(",  # Basic alert
+                r"confirm\s*\(",  # Confirmation dialog
+                r"prompt\s*\(",  # Input prompt
+                r"window\.open\s*\(",  # Window.open
+                r"showModalDialog\s*\(",  # Modal dialog
+                r"createPopup\s*\(",  # IE popup
+                r"showModal\s*\(",  # Modal
+                r"\.modal\s*\(",  # Bootstrap modal
+                r"\.dialog\s*\(",  # jQuery dialog
+                r"\.popup\s*\(",  # Generic popup
+                r"onbeforeunload\s*=",  # Before unload
+                r"onunload\s*=",  # Unload
+                r"data-toggle=['\"]modal['\"]",  # Bootstrap data attribute
+                r"class=['\"][^'\"]*modal[^'\"]*['\"]"  # Modal class
+            ]
+            
+            popup_count = 0
+            for pattern in popup_patterns:
+                matches = len(re.findall(pattern, self.response.text, re.IGNORECASE))
+                popup_count += matches
+            
+            # Evaluate based on number of popup patterns found
+            if popup_count == 0:
+                return 1  # No popups found
+            elif popup_count <= 2:
+                return 0  # Few popups, might be legitimate
             else:
-                return -1
+                return -1  # Multiple popups, suspicious
         except:
-             return -1
+            return 0  # Return neutral on error
 
-    
+    # 23.IframeRedirection
     def IframeRedirection(self):
         try:
-            if re.findall(r"[<iframe>|<frameBorder>]", self.response.text):
+            if not self.soup:
+                return 0
+            
+            # Check for iframes
+            iframes = self.soup.find_all('iframe')
+            if not iframes:
+                return 1  # No iframes found, considered safe
+            
+            suspicious_count = 0
+            total_iframes = len(iframes)
+            
+            for iframe in iframes:
+                # Check for suspicious attributes
+                src = iframe.get('src', '').lower()
+                style = iframe.get('style', '').lower()
+                
+                # Suspicious patterns
+                suspicious_patterns = [
+                    'hidden', 'display:none', 'visibility:hidden',
+                    'opacity:0', 'width:0', 'height:0',
+                    'position:absolute', 'position:fixed',
+                    'z-index:-1', 'left:-9999px'
+                ]
+                
+                # Check for suspicious sources
+                if any(pattern in src for pattern in ['redirect', 'login', 'verify', 'secure']):
+                    suspicious_count += 1
+                
+                # Check for suspicious styling
+                if any(pattern in style for pattern in suspicious_patterns):
+                    suspicious_count += 1
+            
+            # Evaluate based on ratio of suspicious iframes
+            if total_iframes == 0:
                 return 1
-            else:
+            elif suspicious_count / total_iframes > 0.5:  # More than 50% suspicious
                 return -1
+            elif suspicious_count / total_iframes > 0.2:  # 20-50% suspicious
+                return 0
+            else:
+                return 1
         except:
-             return -1
+            return 0  # Return neutral on error
 
-    
+    # 24.AgeofDomain
     def AgeofDomain(self):
         try:
             creation_date = self.whois_response.creation_date
-            try:
-                if(len(creation_date)):
-                    creation_date = creation_date[0]
-            except:
-                pass
-
-            today  = date.today()
-            age = (today.year-creation_date.year)*12+(today.month-creation_date.month)
-            if age >=6:
+            if not creation_date:
+                return 0  # Return neutral if no creation date
+            
+            # Handle both single date and list of dates
+            if isinstance(creation_date, list):
+                creation_date = creation_date[0]
+            
+            today = date.today()
+            age_months = (today.year - creation_date.year) * 12 + (today.month - creation_date.month)
+            
+            # More granular age classification
+            if age_months >= 24:  # 2 years or more
                 return 1
-            return -1
+            elif age_months >= 12:  # 1-2 years
+                return 0
+            else:  # Less than 1 year
+                return -1
         except:
-            return -1
+            return 0  # Return neutral on error
 
-      
+    # 25.DNSRecording
     def DNSRecording(self):
         try:
-            creation_date = self.whois_response.creation_date
-            try:
-                if(len(creation_date)):
-                    creation_date = creation_date[0]
-            except:
-                pass
-
-            today  = date.today()
-            age = (today.year-creation_date.year)*12+(today.month-creation_date.month)
-            if age >=6:
+            # Check multiple DNS record types
+            domain = self.domain
+            if not domain:
+                return 0
+            
+            # Check for common DNS records
+            records_to_check = ['A', 'AAAA', 'MX', 'NS', 'TXT']
+            valid_records = 0
+            
+            for record_type in records_to_check:
+                try:
+                    dns.resolver.resolve(domain, record_type)
+                    valid_records += 1
+                except:
+                    continue
+            
+            # More granular scoring based on number of valid records
+            if valid_records >= 4:  # Most records present
                 return 1
-            return -1
+            elif valid_records >= 2:  # Some records present
+                return 0
+            else:  # Few or no records
+                return -1
         except:
-            return -1
+            return 0  # Return neutral on error
 
-    
+    # 26.WebsiteTraffic
     def WebsiteTraffic(self):
         try:
-            rank = BeautifulSoup(urllib.request.urlopen("http://data.alexa.com/data?cli=10&dat=s&url=" + url).read(), "xml").find("REACH")['RANK']
-            if (int(rank) < 100000):
-                return 1
-            return 0
-        except :
+            domain = self.domain
+            if not domain:
+                return 0
+            
+            # Remove www. if present
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Method 1: Check Google Indexing and Search Results
+            try:
+                from googlesearch import search
+                # Check if site is indexed by Google and has multiple pages
+                indexed_pages = list(search(f"site:{domain}", num=5, stop=5))
+                if len(indexed_pages) > 0:
+                    if len(indexed_pages) >= 3:
+                        return 1  # Multiple pages indexed, likely has good traffic
+                    return 0  # At least one page indexed
+            except:
+                pass
+            
+            # Method 2: Check DNS records for common CDNs and services
+            try:
+                import dns.resolver
+                # Check for common CDN and service records
+                cdn_indicators = [
+                    'cloudfront.net', 'akamai.net', 'fastly.net',
+                    'cloudflare.com', 'azureedge.net', 'googleusercontent.com',
+                    'amazonaws.com', 'azure.com', 'google.com'
+                ]
+                
+                # Check A and CNAME records
+                try:
+                    a_records = dns.resolver.resolve(domain, 'A')
+                    for record in a_records:
+                        if any(cdn in str(record) for cdn in cdn_indicators):
+                            return 1  # Using CDN, likely has some traffic
+                except:
+                    pass
+                    
+                try:
+                    cname_records = dns.resolver.resolve(domain, 'CNAME')
+                    for record in cname_records:
+                        if any(cdn in str(record) for cdn in cdn_indicators):
+                            return 1  # Using CDN, likely has some traffic
+                except:
+                    pass
+            except:
+                pass
+            
+            # Method 3: Check for common analytics and tracking scripts
+            try:
+                analytics_scripts = [
+                    'google-analytics.com/ga.js',
+                    'google-analytics.com/analytics.js',
+                    'googletagmanager.com/gtag/js',
+                    'matomo.js',
+                    'piwik.js',
+                    'analytics.js',
+                    'gtag.js',
+                    'ga.js',
+                    'fbq.js',  # Facebook Pixel
+                    'linkedin.com/analytics',
+                    'twitter.com/analytics'
+                ]
+                
+                if any(script in self.response.text for script in analytics_scripts):
+                    return 1  # Has analytics, likely has some traffic
+            except:
+                pass
+            
+            # Method 4: Check for social media presence and sharing buttons
+            try:
+                social_indicators = [
+                    'facebook.com', 'twitter.com', 'linkedin.com',
+                    'instagram.com', 'youtube.com', 'pinterest.com',
+                    'sharethis.com', 'addthis.com', 'share-buttons',
+                    'social-share', 'social-media-icons'
+                ]
+                
+                if any(indicator in self.response.text for indicator in social_indicators):
+                    return 0  # Has social media links, might have some traffic
+            except:
+                pass
+            
+            # Method 5: Check for common e-commerce and business indicators
+            try:
+                business_indicators = [
+                    'shopping-cart', 'add-to-cart', 'checkout',
+                    'payment-methods', 'customer-reviews',
+                    'product-reviews', 'trust-badges',
+                    'secure-checkout', 'ssl-secured'
+                ]
+                
+                if any(indicator in self.response.text.lower() for indicator in business_indicators):
+                    return 1  # Has e-commerce features, likely has traffic
+            except:
+                pass
+            
+            # If none of the above methods found significant traffic indicators
             return -1
+            
+        except:
+            return 0  # Return neutral on error
 
-    
+    # 27.PageRank
     def PageRank(self):
         try:
             prank_checker_response = requests.post("https://www.checkpagerank.net/index.php", {"name": self.domain})
@@ -439,33 +649,104 @@ class FeatureExtraction:
             return -1
         except:
             return -1
-            
 
-   
+    # 28.GoogleIndex
     def GoogleIndex(self):
         try:
-            site = search(self.url, 5)
-            if site:
+            from googlesearch import search
+            from urllib.parse import urlparse
+            
+            # Get domain without www
+            domain = self.domain
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Check multiple search queries
+            queries = [
+                f"site:{domain}",
+                f"inurl:{domain}",
+                f"intitle:{domain}"
+            ]
+            
+            indexed_pages = set()
+            for query in queries:
+                try:
+                    results = list(search(query, num=5, stop=5))
+                    indexed_pages.update(results)
+                except:
+                    continue
+            
+            if len(indexed_pages) >= 3:  # Multiple pages indexed
                 return 1
-            else:
+            elif len(indexed_pages) > 0:  # At least one page indexed
+                return 0
+            else:  # No pages indexed
                 return -1
         except:
-            return 1
+            return 0  # Return neutral on error
 
-   
+    # 29.LinksPointingToPage
     def LinksPointingToPage(self):
         try:
-            number_of_links = len(re.findall(r"<a href=", self.response.text))
-            if number_of_links == 0:
-                return 1
-            elif number_of_links <= 2:
+            if not self.soup:
+                return 0
+            
+            # Initialize counters
+            internal_links = 0
+            external_links = 0
+            suspicious_links = 0
+            
+            # Get all links
+            for link in self.soup.find_all('a', href=True):
+                href = link['href'].lower()
+                
+                # Skip empty or javascript links
+                if not href or href.startswith(('javascript:', '#')):
+                    continue
+                
+                # Check if it's an internal link
+                if self.domain in href or href.startswith('/'):
+                    internal_links += 1
+                else:
+                    external_links += 1
+                
+                # Check for suspicious link patterns
+                suspicious_patterns = [
+                    'download', 'click', 'redirect', 'login',
+                    'signup', 'register', 'verify', 'confirm',
+                    'password', 'account', 'secure', 'update'
+                ]
+                
+                if any(pattern in href for pattern in suspicious_patterns):
+                    suspicious_links += 1
+            
+            # Calculate ratios
+            total_links = internal_links + external_links
+            if total_links == 0:
+                return 0  # No links found, return neutral
+            
+            suspicious_ratio = suspicious_links / total_links
+            external_ratio = external_links / total_links
+            
+            # Evaluate based on multiple factors
+            if total_links < 5:
+                return 0  # Too few links to make a determination
+            
+            if suspicious_ratio > 0.5:  # More than 50% suspicious links
+                return -1
+            elif suspicious_ratio > 0.2:  # 20-50% suspicious links
+                return 0
+            elif external_ratio > 0.8:  # More than 80% external links
+                return -1
+            elif external_ratio > 0.5:  # 50-80% external links
                 return 0
             else:
-                return -1
+                return 1  # Good balance of internal and external links
+            
         except:
-            return -1
+            return 0  # Return neutral on error
 
-   
+    # 30.StatsReport
     def StatsReport(self):
         try:
             url_match = re.search(
@@ -484,6 +765,17 @@ class FeatureExtraction:
             return 1
         except:
             return 1
-    
+
     def getFeaturesList(self):
-        return self.features
+        # Create a mapping of method names to expected feature names
+        feature_names = [
+            'UsingIP', 'LongURL', 'ShortURL', 'Symbol@', 'Redirecting//', 'PrefixSuffix-',
+            'SubDomains', 'HTTPS', 'DomainRegLen', 'Favicon', 'NonStdPort', 'HTTPSDomainURL',
+            'RequestURL', 'AnchorURL', 'LinksInScriptTags', 'ServerFormHandler', 'InfoEmail',
+            'AbnormalURL', 'WebsiteForwarding', 'StatusBarCust', 'DisableRightClick',
+            'UsingPopupWindow', 'IframeRedirection', 'AgeofDomain', 'DNSRecording',
+            'WebsiteTraffic', 'PageRank', 'GoogleIndex', 'LinksPointingToPage', 'StatsReport'
+        ]
+        
+        # Return a dictionary with the expected feature names
+        return dict(zip(feature_names, self.features))
